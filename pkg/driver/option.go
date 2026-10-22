@@ -164,6 +164,9 @@ type UploadMultipartOptions struct {
 	ThreadsNum       int
 	Timeout          time.Duration
 	TokenRefreshTime time.Duration
+	// ProgressFunc is invoked after each part finishes uploading with the
+	// cumulative number of bytes already uploaded. Optional.
+	ProgressFunc func(uploadedBytes int64)
 }
 
 // DefalutUploadMultipartOptions is deprecated: use DefaultUploadMultipartOptions instead. This function exists for backward compatibility.
@@ -197,6 +200,12 @@ func UploadMultipartWithTimeout(timeout time.Duration) UploadMultipartOption {
 func UploadMultipartWithTokenRefreshTime(refreshTime time.Duration) UploadMultipartOption {
 	return func(o *UploadMultipartOptions) {
 		o.TokenRefreshTime = refreshTime
+	}
+}
+
+func UploadMultipartWithProgressFunc(f func(uploadedBytes int64)) UploadMultipartOption {
+	return func(o *UploadMultipartOptions) {
+		o.ProgressFunc = f
 	}
 }
 

@@ -135,6 +135,9 @@ func (c *EcdhCipher) Decrypt(cipherText []byte) (text []byte, e error) {
 	}()
 
 	cipherText = cipherText[0 : len(cipherText)-len(cipherText)%aes.BlockSize]
+	if len(cipherText) < aes.BlockSize {
+		return nil, fmt.Errorf("encrypted payload too short: %d bytes", len(cipherText))
+	}
 
 	block, err := aes.NewCipher(c.key)
 	if err != nil {
@@ -145,14 +148,23 @@ func (c *EcdhCipher) Decrypt(cipherText []byte) (text []byte, e error) {
 	mode := cipher.NewCBCDecrypter(block, c.iv)
 	mode.CryptBlocks(lz4Block, cipherText)
 
+	// 前2字节为小端序的lz4压缩数据长度
 	length := int(lz4Block[0]) + int(lz4Block[1])<<8
-	text = make([]byte, 0x2000)
-	l, err := lz4.UncompressBlock(lz4Block[2:length+2], text)
-	if err != nil {
-		return nil, err
+	if length < 2 || length+2 > len(lz4Block) {
+		return nil, fmt.Errorf("invalid encrypted payload: lz4 length %d out of bounds for %d bytes", length, len(lz4Block))
 	}
 
-	return text[:l], nil
+	// 输出缓冲不足时按倍数扩容重试
+	for size := 0x2000; ; size *= 8 {
+		text = make([]byte, size)
+		l, err := lz4.UncompressBlock(lz4Block[2:length+2], text)
+		if err == nil {
+			return text[:l], nil
+		}
+		if size > 1<<25 {
+			return nil, fmt.Errorf("lz4 uncompress failed even with %d bytes buffer: %w", size, err)
+		}
+	}
 }
 
 // EncodeToken 加密token

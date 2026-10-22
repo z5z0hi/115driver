@@ -259,7 +259,7 @@ func (c *Pan115Client) RapidUpload(fileSize int64, fileName, dirID, preID, fileI
 		if bodyBytes, err = io.ReadAll(data); err != nil {
 			return nil, err
 		}
-		if decrypted, err = ecdhCipher.Decrypt(bodyBytes); err != nil {
+		if decrypted, err = decryptUploadResponse(ecdhCipher, bodyBytes); err != nil {
 			return nil, err
 		}
 		if err = CheckErr(json.Unmarshal(decrypted, &result), &result, resp); err != nil {
@@ -276,6 +276,36 @@ func (c *Pan115Client) RapidUpload(fileSize int64, fileName, dirID, preID, fileI
 	}
 
 	return &result, nil
+}
+
+// decryptUploadResponse decodes the initupload response: the API normally
+// replies with an ECDH-encrypted payload, but may return a plain JSON body
+// (e.g. WAF challenges or unencrypted error pages) which must not be
+// force-decrypted.
+func decryptUploadResponse(ecdhCipher *cipher.EcdhCipher, body []byte) ([]byte, error) {
+	if trimmed := bytes.TrimSpace(body); len(trimmed) > 0 && trimmed[0] == '{' {
+		return trimmed, nil
+	}
+	decrypted, err := ecdhCipher.Decrypt(body)
+	if err != nil {
+		return nil, fmt.Errorf("解密上传接口响应失败 (body %d bytes, head %s): %w",
+			len(body), strconv.Quote(previewBytes(body, 120)), err)
+	}
+	return decrypted, nil
+}
+
+// previewBytes renders at most max bytes, keeping printable characters only.
+func previewBytes(body []byte, max int) string {
+	if len(body) > max {
+		body = body[:max]
+	}
+	out := make([]rune, 0, len(body))
+	for _, b := range body {
+		if b >= 0x20 && b < 0x7f {
+			out = append(out, rune(b))
+		}
+	}
+	return string(out)
 }
 
 const (

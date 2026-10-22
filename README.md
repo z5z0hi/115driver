@@ -33,7 +33,7 @@ A comprehensive Go library, CLI tool, and MCP server for [115 cloud storage](htt
 
 **Recycle Bin** — List, restore, and permanently delete items.
 
-**CLI** — Full-featured command-line interface with colored table output, JSON mode for scripts, shell completions, and multiple profile support.
+**CLI** — Full-featured command-line interface with colored table output, JSON mode for scripts, shell completions, and multiple profile support. Uploads support multiple files, recursive directory upload, and automatic resumable transfers.
 
 **MCP Server** — [Model Context Protocol](https://modelcontextprotocol.io/) server for AI application integration (Claude Desktop, Cursor, etc.).
 
@@ -237,9 +237,17 @@ Additional env vars: `DRIVER115_CONFIG` (config path), `DRIVER115_PROFILE` (prof
 # With --json, ls includes offset, limit, has_more, and next_offset.
 
 # Upload & Download
-115driver upload /local/file /remote/dir
+115driver upload /local/file /remote/dir      # last argument is the remote dir
+115driver upload a.zip b.mkv c.pdf /remote/dir  # multiple files in one command
+115driver upload /local/dir /remote/dir       # recursive directory upload
+                                              # (fails if a same-name remote dir exists)
 115driver download /remote/file /local/dir
 115driver download /remote/file /local/dir --timeout 6h  # default 2h, 0 disables timeout
+
+# Interrupted uploads resume automatically: re-run the same command and it
+# continues from where it stopped (checkpoint matched by file name, size and
+# mtime — no re-hashing). State lives in ~/.115driver/uploads/ and is removed
+# on success.
 
 # Search
 115driver search keyword
